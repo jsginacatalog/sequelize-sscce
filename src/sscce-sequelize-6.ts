@@ -1,10 +1,10 @@
-import { DataTypes, Model } from 'sequelize';
+import { DataTypes, Logging, Model } from 'sequelize';
 import { createSequelize6Instance } from '../dev/create-sequelize-instance';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
 // if your issue is dialect specific, remove the dialects you don't need to test on.
-export const testingOnDialects = new Set(['mssql', 'sqlite', 'mysql', 'mariadb', 'postgres', 'postgres-native']);
+export const testingOnDialects = new Set(['postgres']);
 
 // You can delete this file if you don't want your SSCCE to be tested against Sequelize 6
 
@@ -21,21 +21,54 @@ export async function run() {
     },
   });
 
-  class Foo extends Model {}
-
-  Foo.init({
-    name: DataTypes.TEXT,
-  }, {
+  let options = {
     sequelize,
     modelName: 'Foo',
-  });
+    schema: 'public',
+    freezeTableName: true
+  };
 
-  // You can use sinon and chai assertions directly in your SSCCE.
-  const spy = sinon.spy();
-  sequelize.afterBulkSync(() => spy());
+
+  await sequelize.define(
+    'Foo',
+    {
+      name: {
+        type: DataTypes.STRING,
+        comment: 'Name of the user',
+      }
+    },
+    options
+  );
+
   await sequelize.sync({ force: true });
-  expect(spy).to.have.been.called;
 
-  console.log(await Foo.create({ name: 'TS foo' }));
-  expect(await Foo.count()).to.equal(1);
+  let optionsSchema: Logging = {logging: false};
+
+  try {
+    sequelize.createSchema("test", optionsSchema);
+  } catch { }
+
+  options['schema'] = 'test';
+
+  await sequelize.define(
+    'Foo',
+    {
+      name: {
+        type: DataTypes.STRING,
+        comment: 'Name of the user',
+      }
+    },
+    options
+  );
+
+  await sequelize.sync({ force: true });
+  
+  let result;
+  try {
+    result = await sequelize.getQueryInterface().describeTable('Foo');
+  }
+  catch (error) {
+    console.log(error);
+  }
+  expect(result).to.not.equal(undefined);
 }
